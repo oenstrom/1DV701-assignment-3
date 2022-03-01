@@ -170,7 +170,6 @@ public class TftpServer {
    */
   private void sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
       throws IOException {
-    System.out.println(requestedFile);
     File file = new File(requestedFile);
     if (!file.exists()) {
       throw new FileNotFoundException("File " + requestedFile + " doesn't exist.");
