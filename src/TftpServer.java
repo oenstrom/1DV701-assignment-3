@@ -6,8 +6,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
-import java.nio.Buffer;
-import java.nio.charset.Charset;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.rmi.ServerException;
@@ -16,6 +15,7 @@ public class TftpServer {
   public static final int TFTPPORT = 4970;
   public static final int BUFSIZE = 516;
   public static final int OP_POS = 1;
+  public static final int RETRANSMIT_TIME = 5000;
   public static final String READDIR = System.getProperty("user.dir") + "\\"; // custom address at your PC
   public static final String WRITEDIR = "/home/username/write/"; // custom address at your PC
   // OP codes
@@ -71,6 +71,7 @@ public class TftpServer {
         public void run() {
           try (DatagramSocket sendSocket = new DatagramSocket(0);) {
             
+            sendSocket.setSoTimeout(10000);
             // Connect to client
             sendSocket.connect(clientAddress);
 
@@ -87,10 +88,13 @@ public class TftpServer {
               handleRQ(sendSocket, requestedFile.toString(), OP_WRQ);
             }
             sendSocket.close();
+          } catch (SocketTimeoutException ste) {
+            System.err.println("Socket timed out.");
           } catch (IOException ioe) {
             ioe.printStackTrace();
+          } finally {
             Thread.currentThread().interrupt();
-          } 
+          }
         }
       }.start();
     }
@@ -152,15 +156,29 @@ public class TftpServer {
       } catch (ServerException se) { //No ACK was received.
         System.err.println(se.getLocalizedMessage()); 
       }
-    }
-    // } else if (opcode == OP_WRQ) {
-    //   boolean result = receiveDataSendAck(params);
-    else {
+    } else if (opcode == OP_WRQ) {
+      generateFile(sendSocket);
+    } else {
       System.err.println("Invalid request. Sending an error packet.");
       // See "TFTP Formats" in TFTP specification for the ERROR packet contents
       sendErr(sendSocket, Error.Illegal_Operation);
       return;
     }
+  }
+
+  /**
+   * Get all bytes from the requested file.
+   *
+   * @param requestedFile the name of the requested file.
+   * @return bytes of the requested file.
+   * @throws FileNotFoundException if the requested file doesn't exist.
+   */
+  private byte[] getFileData(String requestedFile) throws IOException {
+    File file = new File(requestedFile);
+    if (!file.exists()) {
+      throw new FileNotFoundException("File " + requestedFile + " does not exist.");
+    }
+    return Files.readAllBytes(file.toPath());
   }
 
   /**
@@ -174,13 +192,7 @@ public class TftpServer {
    */
   private void sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
       throws IOException {
-    File file = new File(requestedFile);
-    if (!file.exists()) {
-      throw new FileNotFoundException("File " + requestedFile + " doesn't exist.");
-    }
-    byte[] fileData;
-
-    fileData = Files.readAllBytes(file.toPath());
+    byte[] fileData = getFileData(requestedFile);
   
     int noPackets = (int) Math.ceil(fileData.length / 511.9);
     byte[] header = {0, OP_DAT, 0, 1};
@@ -192,22 +204,78 @@ public class TftpServer {
       System.arraycopy(header, 0, packet, 0, header.length);
       System.arraycopy(fileData, i * 512, packet, header.length, packet.length - header.length);
 
-      sendSocket.send(new DatagramPacket(packet, packet.length));
+      DatagramPacket packetToSend = new DatagramPacket(packet, packet.length);
+      sendSocket.send(packetToSend);
 
-      byte[] buf       = new byte[BUFSIZE];
-      DatagramPacket p = new DatagramPacket(buf, BUFSIZE);
-      sendSocket.receive(p);
+      // byte[] buf       = new byte[BUFSIZE];
+      // DatagramPacket p = new DatagramPacket(buf, BUFSIZE);
+      // sendSocket.receive(p);
+      if (retransmit(sendSocket, packetToSend) == null) {
+        break;
+      }
 
-      if (buf[OP_POS] != OP_ACK) {
-        throw new ServerException("No ACK was received."); //TODO: Temporary type of exception.  
-      }                                                    //TODO: To be changed.
+      // if (ack.getData()[OP_POS] != OP_ACK) {
+      //   throw new ServerException("No ACK was received."); //TODO: Temporary type of exception.  
+      // }                                                    //TODO: To be changed.
       header[OP_POS + 2] = (byte) (i + 2); 
     }
   }
 
-  // private boolean receiveDataSendAck(params) {
-  //   return true;
-  // }
+  /**
+   * Tries to receive packet from client. 
+   *
+   * @param socket the socket used for communication.
+   * @return the received packet or null if the socket times out.
+   */
+  private DatagramPacket receivePacket(DatagramSocket socket) throws IOException {
+    socket.setSoTimeout(RETRANSMIT_TIME);
+    byte[] buf = new byte[BUFSIZE];
+    DatagramPacket receivedPacket = new DatagramPacket(buf, buf.length);
+    try {
+      socket.receive(receivedPacket);
+    } catch (SocketTimeoutException ste) {
+      return null;
+    }
+    return receivedPacket;
+  }
+
+  /**
+   * Attempts to retreive packet from client. Creates file from packet data if successfull.
+   *
+   * @param socket the socket to send and receive through.
+   * @return the generated file.
+   */
+  private File generateFile(DatagramSocket socket) throws IOException {
+    //TODO: Finalize this.
+    DatagramPacket ack = new DatagramPacket(new byte[]{0, OP_ACK, 0, 0}, 4);    
+    socket.send(ack);
+    DatagramPacket packet = retransmit(socket, ack);
+    if (packet == null) {
+      
+    } else {
+      
+    }
+
+    return null;
+  }
+
+  /**
+   * Attempts to transmit packet until a packet is received. Or a maximum of 5 times.
+   *
+   * @param socket the socket to send and receive through.
+   * @param last the packet to transmit. 
+   * @return Packet received.
+   */
+  private DatagramPacket retransmit(DatagramSocket socket, DatagramPacket last) throws IOException {
+    DatagramPacket dp = null;
+    for (int i = 0; (i < 5); i++) {
+      if ((dp = receivePacket(socket)) != null) {
+        return dp;
+      }
+      socket.send(last);
+    }
+    return dp;
+  }
 
   /**
    * Send an error code and message.
