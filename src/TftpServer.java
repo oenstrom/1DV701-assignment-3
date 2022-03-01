@@ -167,6 +167,8 @@ public class TftpServer {
    * @param sendSocket the socket used for communication.
    * @param requestedFile the file to send.
    * @throws IOException if an I/O-error occurs.
+   * @throws FileNotFoundException if requestedFile does not exist.
+   * @throws ServerException if no ACK is received after file is sent.
    */
   private void sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
       throws IOException {
@@ -195,8 +197,8 @@ public class TftpServer {
       sendSocket.receive(p);
 
       if (buf[1] != OP_ACK) {
-        throw new ServerException("No ACK was received.");
-      }
+        throw new ServerException("No ACK was received."); //TODO: Temporary type of exception.  
+      }                                                    //TODO: To be changed.
       header[3] = (byte) (i + 2); 
     }
   }
