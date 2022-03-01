@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -7,6 +8,7 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.rmi.ServerException;
 
 public class TftpServer {
   public static final int TFTPPORT = 4970;
@@ -64,9 +66,8 @@ public class TftpServer {
 
       new Thread() {
         public void run() {
-          try {
-            DatagramSocket sendSocket = new DatagramSocket(0);
-
+          try (DatagramSocket sendSocket = new DatagramSocket(0);) {
+            
             // Connect to client
             sendSocket.connect(clientAddress);
 
@@ -83,9 +84,10 @@ public class TftpServer {
               handleRQ(sendSocket, requestedFile.toString(), OP_WRQ);
             }
             sendSocket.close();
-          } catch (SocketException e) {
-            e.printStackTrace();
-          }
+          } catch (IOException ioe) {
+            ioe.printStackTrace();
+            Thread.currentThread().interrupt();
+          } 
         }
       }.start();
     }
@@ -133,16 +135,20 @@ public class TftpServer {
    * @param sendSocket (socket used to send/receive packets)
    * @param requestedFile (name of file to read/write)
    * @param opcode (RRQ or WRQ)
+   * @throws IOException if an I/O error-occurs.
    */
-  private void handleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) {
+  private void handleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) 
+      throws IOException {
     if (opcode == OP_RRQ) {
       // See "TFTP Formats" in TFTP specification for the DATA and ACK packet contents
       try {
-        boolean result = sendDataReceiveAck(sendSocket, requestedFile);
-      } catch (IOException e) {
-        // TODO: Temporary catch here. Maybe we should throw here too to handle in main? 
-        // If not, update catch block with suiting handling.
-        e.printStackTrace();
+        sendDataReceiveAck(sendSocket, requestedFile);      
+      } catch (FileNotFoundException fnfe) {
+        System.err.println(fnfe.getLocalizedMessage());
+        //TODO: Implement sendErr and add it here.
+        //sendErr(params);
+      } catch (ServerException se) { //No ACK was received.
+        System.err.println(se.getLocalizedMessage()); 
       }
     }
     // } else if (opcode == OP_WRQ) {
@@ -160,15 +166,14 @@ public class TftpServer {
    *
    * @param sendSocket the socket used for communication.
    * @param requestedFile the file to send.
-   * @return true if data was sent successfully.
    * @throws IOException if an I/O-error occurs.
    */
-  private boolean sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
+  private void sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
       throws IOException {
     System.out.println(requestedFile);
     File file = new File(requestedFile);
     if (!file.exists()) {
-      return false;
+      throw new FileNotFoundException("File " + requestedFile + " doesn't exist.");
     }
     byte[] fileData;
 
@@ -191,11 +196,10 @@ public class TftpServer {
       sendSocket.receive(p);
 
       if (buf[1] != OP_ACK) {
-        return false;
+        throw new ServerException("No ACK was received.");
       }
-      header[3] = (byte) (i + 2); // Set
+      header[3] = (byte) (i + 2); 
     }
-    return true;
   }
 
   // private boolean receiveDataSendAck(params) {
