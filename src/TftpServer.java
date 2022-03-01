@@ -6,6 +6,8 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.nio.Buffer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.rmi.ServerException;
@@ -13,6 +15,7 @@ import java.rmi.ServerException;
 public class TftpServer {
   public static final int TFTPPORT = 4970;
   public static final int BUFSIZE = 516;
+  public static final int OP_POS = 1;
   public static final String READDIR = System.getProperty("user.dir") + "\\"; // custom address at your PC
   public static final String WRITEDIR = "/home/username/write/"; // custom address at your PC
   // OP codes
@@ -145,20 +148,19 @@ public class TftpServer {
         sendDataReceiveAck(sendSocket, requestedFile);      
       } catch (FileNotFoundException fnfe) {
         System.err.println(fnfe.getLocalizedMessage());
-        //TODO: Implement sendErr and add it here.
-        //sendErr(params);
+        sendErr(sendSocket, Error.File_Not_Found);
       } catch (ServerException se) { //No ACK was received.
         System.err.println(se.getLocalizedMessage()); 
       }
     }
     // } else if (opcode == OP_WRQ) {
     //   boolean result = receiveDataSendAck(params);
-    // } else {
-    //   System.err.println("Invalid request. Sending an error packet.");
-    //   // See "TFTP Formats" in TFTP specification for the ERROR packet contents
-    //   sendErr(params);
-    //   return;
-    // }
+    else {
+      System.err.println("Invalid request. Sending an error packet.");
+      // See "TFTP Formats" in TFTP specification for the ERROR packet contents
+      sendErr(sendSocket, Error.Illegal_Operation);
+      return;
+    }
   }
 
   /**
@@ -180,15 +182,15 @@ public class TftpServer {
 
     fileData = Files.readAllBytes(file.toPath());
   
-    int noPackets = (int) Math.ceil(fileData.length / 511.0);
-    int lastPacketSize = (fileData.length % 512) + 4;
+    int noPackets = (int) Math.ceil(fileData.length / 511.9);
     byte[] header = {0, OP_DAT, 0, 1};
+    int lastPacketSize = (fileData.length % 512) + header.length;
     for (int i = 0; i < noPackets; i++) {
-      int size      = ((i + 1) == noPackets) ? lastPacketSize : 516;
-      byte[] packet = new byte[size];
+      // All packets but last one should be 516 bytes long.
+      byte[] packet = new byte[(i == (noPackets - 1)) ? lastPacketSize : 516];
 
-      System.arraycopy(header, 0, packet, 0, 4);
-      System.arraycopy(fileData, i * 512, packet, 4, size - 4);
+      System.arraycopy(header, 0, packet, 0, header.length);
+      System.arraycopy(fileData, i * 512, packet, header.length, packet.length - header.length);
 
       sendSocket.send(new DatagramPacket(packet, packet.length));
 
@@ -196,10 +198,10 @@ public class TftpServer {
       DatagramPacket p = new DatagramPacket(buf, BUFSIZE);
       sendSocket.receive(p);
 
-      if (buf[1] != OP_ACK) {
+      if (buf[OP_POS] != OP_ACK) {
         throw new ServerException("No ACK was received."); //TODO: Temporary type of exception.  
       }                                                    //TODO: To be changed.
-      header[3] = (byte) (i + 2); 
+      header[OP_POS + 2] = (byte) (i + 2); 
     }
   }
 
@@ -207,6 +209,19 @@ public class TftpServer {
   //   return true;
   // }
 
-  // private void sendErr(params) {
-  // }
+  /**
+   * Send an error code and message.
+   *
+   * @param error the error code to be sent with the following error message.
+   */
+  private void sendErr(DatagramSocket sendSocket, Error error) throws IOException {
+    byte[] header = {0, OP_ERR, 0, error.code};
+
+    byte[] packet = new byte[header.length + error.message.length + 1];
+    
+    System.arraycopy(header, 0, packet, 0, header.length);
+    System.arraycopy(error.message, 0, packet, header.length, error.message.length);
+
+    sendSocket.send(new DatagramPacket(packet, packet.length));
+  }
 }
