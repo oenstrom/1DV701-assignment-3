@@ -137,7 +137,13 @@ public class TftpServer {
   private void handleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) {
     if (opcode == OP_RRQ) {
       // See "TFTP Formats" in TFTP specification for the DATA and ACK packet contents
-      boolean result = sendDataReceiveAck(sendSocket, requestedFile);
+      try {
+        boolean result = sendDataReceiveAck(sendSocket, requestedFile);
+      } catch (IOException e) {
+        // TODO: Temporary catch here. Maybe we should throw here too to handle in main? 
+        // If not, update catch block with suiting handling.
+        e.printStackTrace();
+      }
     }
     // } else if (opcode == OP_WRQ) {
     //   boolean result = receiveDataSendAck(params);
@@ -150,46 +156,44 @@ public class TftpServer {
   }
 
   /**
-  To be implemented.
-  */
-  private boolean sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) {
+   * Sends data and hreceives ACK's.
+   *
+   * @param sendSocket the socket used for communication.
+   * @param requestedFile the file to send.
+   * @return true if data was sent successfully.
+   * @throws IOException if an I/O-error occurs.
+   */
+  private boolean sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
+      throws IOException {
     System.out.println(requestedFile);
     File file = new File(requestedFile);
     if (!file.exists()) {
       return false;
     }
     byte[] fileData;
-    try {
-      fileData = Files.readAllBytes(file.toPath());
-    } catch (IOException e) {
-      e.printStackTrace();
-      return false;
-    }
-    
+
+    fileData = Files.readAllBytes(file.toPath());
+  
     int noPackets = (int) Math.ceil(fileData.length / 511.0);
     int lastPacketSize = (fileData.length % 512) + 4;
     byte[] header = {0, OP_DAT, 0, 1};
     for (int i = 0; i < noPackets; i++) {
-      int size = ((i + 1) == noPackets) ? lastPacketSize : 516;
+      int size      = ((i + 1) == noPackets) ? lastPacketSize : 516;
       byte[] packet = new byte[size];
+
       System.arraycopy(header, 0, packet, 0, 4);
       System.arraycopy(fileData, i * 512, packet, 4, size - 4);
-      try {
-        sendSocket.send(new DatagramPacket(packet, packet.length));
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
-      byte[] buf = new byte[BUFSIZE];
+
+      sendSocket.send(new DatagramPacket(packet, packet.length));
+
+      byte[] buf       = new byte[BUFSIZE];
       DatagramPacket p = new DatagramPacket(buf, BUFSIZE);
-      try {
-        sendSocket.receive(p);
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
+      sendSocket.receive(p);
+
       if (buf[1] != OP_ACK) {
-        break;
+        return false;
       }
-      header[3] = (byte) (i + 2);
+      header[3] = (byte) (i + 2); // Set
     }
     return true;
   }
