@@ -1,5 +1,6 @@
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -21,7 +22,7 @@ public class TftpServer {
   public static final int RETRANSMIT_TIME = 5000;
   public static final String RUNDIR = System.getProperty("user.dir");
   public static final String READDIR = Paths.get(RUNDIR, "").toString() + File.separatorChar;
-  public static final String WRITEDIR = Paths.get(RUNDIR, "write").toString() + File.separatorChar;
+  public static final String WRITEDIR = Paths.get(RUNDIR, "").toString() + File.separatorChar;
   // OP codes
   public static final int OP_RRQ = 1;
   public static final int OP_WRQ = 2;
@@ -161,7 +162,7 @@ public class TftpServer {
         System.err.println(se.getLocalizedMessage()); //TODO: Maybe not?
       }
     } else if (opcode == OP_WRQ) {
-      generateFile(sendSocket);
+      generateFile(sendSocket, requestedFile);
     } else {
       System.err.println("Invalid request. Sending an error packet.");
       // See "TFTP Formats" in TFTP specification for the ERROR packet contents
@@ -226,17 +227,32 @@ public class TftpServer {
    * @param sendSocket the socket to send and receive through.
    * @return the generated file.
    */
-  private File generateFile(DatagramSocket sendSocket) throws IOException {
+  private File generateFile(DatagramSocket sendSocket, String fileName) throws IOException {
     //TODO: Finalize this.
-    DatagramPacket ack = new DatagramPacket(new byte[]{0, OP_ACK, 0, 0}, 4);    
-    sendSocket.send(ack);
-    DatagramPacket packet = retransmit(sendSocket, ack);
-    if (packet == null) {
-      //
-    } else {
-      //
+    byte[] ack = {0, OP_ACK, 0, 0};
+    DatagramPacket ackPacket = new DatagramPacket(ack, ack.length);    
+    sendSocket.send(ackPacket);
+    DatagramPacket recievedPacket = retransmit(sendSocket, ackPacket);
+    if (recievedPacket == null) {
+      return null;
     }
 
+    File fileToWrite = new File(fileName);
+    if (fileToWrite.exists()) {
+      return null; //TODO: Overwriting a file is not allowed. Send correct error!
+    }
+
+    FileOutputStream fos = new FileOutputStream(fileToWrite);
+    do {
+      byte[] data = recievedPacket.getData();
+      fos.write(data, 4, data.length - 4);
+      ack[3]++;
+      ackPacket = new DatagramPacket(ack, ack.length);
+      sendSocket.send(ackPacket);
+    } while (recievedPacket.getData().length == 516 && (recievedPacket = retransmit(sendSocket, ackPacket)) != null);
+    //TODO: Blir något error i receivePacket() efter man tagit emot.
+    fos.flush();
+    fos.close();
     return null;
   }
 
@@ -250,6 +266,7 @@ public class TftpServer {
    */
   private DatagramPacket retransmit(DatagramSocket sendSocket, DatagramPacket last)
       throws IOException {
+    //TODO: Maybe change the name of this method?
     short blockNr = ByteBuffer.wrap(last.getData()).getShort(2);
     DatagramPacket dp = null;
     for (int i = 0; (i < 5); i++) {
