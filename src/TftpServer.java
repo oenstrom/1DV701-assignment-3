@@ -7,17 +7,21 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.rmi.ServerException;
 
 public class TftpServer {
   public static final int TFTPPORT = 4970;
   public static final int BUFSIZE = 516;
   public static final int OP_POS = 1;
+  public static final int BLOCK_NR_POS = 1;
   public static final int RETRANSMIT_TIME = 5000;
-  public static final String READDIR = System.getProperty("user.dir") + "\\"; // custom address at your PC
-  public static final String WRITEDIR = "/home/username/write/"; // custom address at your PC
+  public static final String RUNDIR = System.getProperty("user.dir");
+  public static final String READDIR = Paths.get(RUNDIR, "").toString() + File.separatorChar;
+  public static final String WRITEDIR = Paths.get(RUNDIR, "write").toString() + File.separatorChar;
   // OP codes
   public static final int OP_RRQ = 1;
   public static final int OP_WRQ = 2;
@@ -154,7 +158,7 @@ public class TftpServer {
         System.err.println(fnfe.getLocalizedMessage());
         sendErr(sendSocket, Error.File_Not_Found);
       } catch (ServerException se) { //No ACK was received.
-        System.err.println(se.getLocalizedMessage()); 
+        System.err.println(se.getLocalizedMessage()); //TODO: Maybe not?
       }
     } else if (opcode == OP_WRQ) {
       generateFile(sendSocket);
@@ -192,24 +196,19 @@ public class TftpServer {
    */
   private void sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
       throws IOException {
-    byte[] fileData = getFileData(requestedFile);
-  
-    int noPackets = (int) Math.ceil(fileData.length / 511.9);
-    byte[] header = {0, OP_DAT, 0, 1};
+    byte[] fileData    = getFileData(requestedFile);
+    int noPackets      = (int) Math.ceil(fileData.length / 511.9);
+    byte[] header      = {0, OP_DAT, 0, 1}; //TODO: BLOCK NUMBER CAN BE TWO BYTES!
     int lastPacketSize = (fileData.length % 512) + header.length;
+
     for (int i = 0; i < noPackets; i++) {
       // All packets but last one should be 516 bytes long.
-      byte[] packet = new byte[(i == (noPackets - 1)) ? lastPacketSize : 516];
+      int packetLength = (i == (noPackets - 1)) ? lastPacketSize : 516;
+      ByteBuffer bb = ByteBuffer.allocate(packetLength);
+      bb.put(header).put(fileData, i * 512, packetLength - header.length);
+      DatagramPacket packetToSend = new DatagramPacket(bb.array(), packetLength);
 
-      System.arraycopy(header, 0, packet, 0, header.length);
-      System.arraycopy(fileData, i * 512, packet, header.length, packet.length - header.length);
-
-      DatagramPacket packetToSend = new DatagramPacket(packet, packet.length);
       sendSocket.send(packetToSend);
-
-      // byte[] buf       = new byte[BUFSIZE];
-      // DatagramPacket p = new DatagramPacket(buf, BUFSIZE);
-      // sendSocket.receive(p);
       if (retransmit(sendSocket, packetToSend) == null) {
         break;
       }
@@ -217,8 +216,50 @@ public class TftpServer {
       // if (ack.getData()[OP_POS] != OP_ACK) {
       //   throw new ServerException("No ACK was received."); //TODO: Temporary type of exception.  
       // }                                                    //TODO: To be changed.
-      header[OP_POS + 2] = (byte) (i + 2); 
+      header[OP_POS + 2] = (byte) (i + 2); //TODO: BLOCK NUMBER CAN BE TWO BYTES!
     }
+  }
+
+  /**
+   * Attempts to retreive packet from client. Creates file from packet data if successfull.
+   *
+   * @param sendSocket the socket to send and receive through.
+   * @return the generated file.
+   */
+  private File generateFile(DatagramSocket sendSocket) throws IOException {
+    //TODO: Finalize this.
+    DatagramPacket ack = new DatagramPacket(new byte[]{0, OP_ACK, 0, 0}, 4);    
+    sendSocket.send(ack);
+    DatagramPacket packet = retransmit(sendSocket, ack);
+    if (packet == null) {
+      //
+    } else {
+      //
+    }
+
+    return null;
+  }
+
+  /**
+   * Attempts to transmit packet until a packet is received with 
+   * the correct block number. Or a maximum of 5 times.
+   *
+   * @param sendSocket the socket to send and receive through.
+   * @param last the packet to retransmit. 
+   * @return Packet received.
+   */
+  private DatagramPacket retransmit(DatagramSocket sendSocket, DatagramPacket last)
+      throws IOException {
+    short blockNr = ByteBuffer.wrap(last.getData()).getShort(2);
+    DatagramPacket dp = null;
+    for (int i = 0; (i < 5); i++) {
+      if ((dp = receivePacket(sendSocket)) != null
+          && blockNr == ByteBuffer.wrap(dp.getData()).getShort(2)) {
+        return dp;
+      }
+      sendSocket.send(last);
+    }
+    return dp;
   }
 
   /**
@@ -227,54 +268,16 @@ public class TftpServer {
    * @param socket the socket used for communication.
    * @return the received packet or null if the socket times out.
    */
-  private DatagramPacket receivePacket(DatagramSocket socket) throws IOException {
-    socket.setSoTimeout(RETRANSMIT_TIME);
+  private DatagramPacket receivePacket(DatagramSocket sendSocket) throws IOException {
+    sendSocket.setSoTimeout(RETRANSMIT_TIME);
     byte[] buf = new byte[BUFSIZE];
     DatagramPacket receivedPacket = new DatagramPacket(buf, buf.length);
     try {
-      socket.receive(receivedPacket);
+      sendSocket.receive(receivedPacket);
     } catch (SocketTimeoutException ste) {
       return null;
     }
     return receivedPacket;
-  }
-
-  /**
-   * Attempts to retreive packet from client. Creates file from packet data if successfull.
-   *
-   * @param socket the socket to send and receive through.
-   * @return the generated file.
-   */
-  private File generateFile(DatagramSocket socket) throws IOException {
-    //TODO: Finalize this.
-    DatagramPacket ack = new DatagramPacket(new byte[]{0, OP_ACK, 0, 0}, 4);    
-    socket.send(ack);
-    DatagramPacket packet = retransmit(socket, ack);
-    if (packet == null) {
-      
-    } else {
-      
-    }
-
-    return null;
-  }
-
-  /**
-   * Attempts to transmit packet until a packet is received. Or a maximum of 5 times.
-   *
-   * @param socket the socket to send and receive through.
-   * @param last the packet to transmit. 
-   * @return Packet received.
-   */
-  private DatagramPacket retransmit(DatagramSocket socket, DatagramPacket last) throws IOException {
-    DatagramPacket dp = null;
-    for (int i = 0; (i < 5); i++) {
-      if ((dp = receivePacket(socket)) != null) {
-        return dp;
-      }
-      socket.send(last);
-    }
-    return dp;
   }
 
   /**
