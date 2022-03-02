@@ -2,6 +2,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.BindException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
@@ -14,6 +15,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.rmi.ServerException;
+import java.util.concurrent.TimeoutException;
 
 public class TftpServer {
   public static final int TFTPPORT = 4970;
@@ -33,40 +35,36 @@ public class TftpServer {
   public static final int OP_ERR = 5;
 
   /**
-   * Hej.
+   * Start the TFTP server.
    */
   public static void main(String[] args) {
     if (args.length > 0) {
       System.err.printf("usage: java %s\n", TftpServer.class.getCanonicalName());
       System.exit(1);
     }
-    // Starting the server
+
     try {
-      TftpServer server = new TftpServer();
-      server.start();
-    } catch (SocketException e) {
-      e.printStackTrace();
+      new TftpServer().start();
+    } catch (BindException be) {
+      System.err.println("Could not bind socket. Port probably already in use.");
+    } catch (SocketException se) {
+      se.printStackTrace();
+    } catch (IOException ie) {
+      System.err.println("I/O error.");
     }
   }
 
-  private void start() throws SocketException {
-    byte[] buf = new byte[BUFSIZE];
-
-    // Create socket
-    DatagramSocket socket = new DatagramSocket(null);
-
-    // Create local bind point
+  private void start() throws SocketException, IOException {
+    DatagramSocket socket        = new DatagramSocket(null);
     SocketAddress localBindPoint = new InetSocketAddress(TFTPPORT);
     socket.bind(localBindPoint);
-
+    
     System.out.printf("Listening at port %d for new requests\n", TFTPPORT);
-
-    // Loop to handle client requests
+    
+    byte[] buf = new byte[BUFSIZE];
     while (true) {
-
       final InetSocketAddress clientAddress = receiveFrom(socket, buf);
 
-      // If clientAddress is null, an error occurred in receiveFrom()
       if (clientAddress == null) {
         continue;
       }
@@ -77,26 +75,24 @@ public class TftpServer {
       new Thread() {
         public void run() {
           try (DatagramSocket sendSocket = new DatagramSocket(0);) {
-            
-            sendSocket.setSoTimeout(10000);
-            // Connect to client
             sendSocket.connect(clientAddress);
 
             System.out.printf("%s request for %s from %s using port %d\n",
                 (reqtype == OP_RRQ) ? "Read" : "Write",
                 clientAddress.getHostName(), clientAddress.getAddress(), clientAddress.getPort());
 
-            // Read request
-            if (reqtype == OP_RRQ) {
-              requestedFile.insert(0, READDIR);
-              handleRQ(sendSocket, requestedFile.toString(), OP_RRQ);
-            } else { // Write request
-              requestedFile.insert(0, WRITEDIR);
-              handleRQ(sendSocket, requestedFile.toString(), OP_WRQ);
+            switch (reqtype) {
+              case OP_RRQ:
+                readRequest(requestedFile.insert(0, READDIR).toString(), sendSocket);
+                break;
+              case OP_WRQ:
+                writeRequest(requestedFile.insert(0, WRITEDIR).toString(), sendSocket);
+                break;
+              default:
+                System.err.println("Invalid request. Sending an error packet.");
+                sendErr(sendSocket, Error.ILLEGAL_OPERATION);
+                break;
             }
-            sendSocket.close();
-          } catch (SocketTimeoutException ste) {
-            System.err.println("Socket timed out.");
           } catch (IOException ioe) {
             ioe.printStackTrace();
           } finally {
@@ -108,6 +104,39 @@ public class TftpServer {
   }
 
   /**
+   * Handle write request.
+   *
+   * @param requestedFile the requested file to be written.
+   * @param sendSocket the socket used for communication.
+   */
+  private void writeRequest(String requestedFile, DatagramSocket sendSocket) throws IOException {
+    try {
+      getDataWriteFile(sendSocket, requestedFile);
+    } catch (TimeoutException te) {
+      sendErr(sendSocket, Error.PREMATURE_TERMINATION);
+    } catch (FileAlreadyExistsException faee) {
+      sendErr(sendSocket, Error.FILE_ALREADY_EXISTS);
+    }
+  }
+
+  /**
+   * Handle read request.
+   *
+   * @param requestedFile the requested file to be read.
+   * @param sendSocket the socket used for communication.
+   */
+  private void readRequest(String requestedFile, DatagramSocket sendSocket) throws IOException {
+    try {
+      sendDataReceiveAck(sendSocket, requestedFile); 
+    } catch (TimeoutException te) {
+      sendErr(sendSocket, Error.PREMATURE_TERMINATION);
+    } catch (FileNotFoundException fnfe) {
+      System.err.println(fnfe.getLocalizedMessage());
+      sendErr(sendSocket, Error.FILE_NOT_FOUND);
+    }
+  }
+
+  /**
    * Reads the first block of data, i.e., the request for an action (read or
    * write).
    * 
@@ -115,16 +144,9 @@ public class TftpServer {
    * @param buf    (where to store the read data)
    * @return socketAddress (the socket address of the client)
    */
-  private InetSocketAddress receiveFrom(DatagramSocket socket, byte[] buf) {
-    // Create datagram packet
+  private InetSocketAddress receiveFrom(DatagramSocket socket, byte[] buf) throws IOException {
     DatagramPacket packet = new DatagramPacket(buf, buf.length);
-    // Receive packet
-    try {
-      socket.receive(packet);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-    // Get client address and port from the packet
+    socket.receive(packet);
     return new InetSocketAddress(packet.getAddress(), packet.getPort());
   }
 
@@ -144,36 +166,6 @@ public class TftpServer {
   }
 
   /**
-   * Handles RRQ and WRQ requests.
-   *
-   * @param sendSocket (socket used to send/receive packets)
-   * @param requestedFile (name of file to read/write)
-   * @param opcode (RRQ or WRQ)
-   * @throws IOException if an I/O error-occurs.
-   */
-  private void handleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) 
-      throws IOException {
-    if (opcode == OP_RRQ) {
-      // See "TFTP Formats" in TFTP specification for the DATA and ACK packet contents
-      try {
-        sendDataReceiveAck(sendSocket, requestedFile);      
-      } catch (FileNotFoundException fnfe) {
-        System.err.println(fnfe.getLocalizedMessage());
-        sendErr(sendSocket, Error.File_Not_Found);
-      } catch (ServerException se) { //No ACK was received.
-        System.err.println(se.getLocalizedMessage()); //TODO: Maybe not?
-      }
-    } else if (opcode == OP_WRQ) {
-      generateFile(sendSocket, requestedFile);
-    } else {
-      System.err.println("Invalid request. Sending an error packet.");
-      // See "TFTP Formats" in TFTP specification for the ERROR packet contents
-      sendErr(sendSocket, Error.Illegal_Operation);
-      return;
-    }
-  }
-
-  /**
    * Get all bytes from the requested file.
    *
    * @param requestedFile the name of the requested file.
@@ -189,7 +181,7 @@ public class TftpServer {
   }
 
   /**
-   * Sends data and hreceives ACK's.
+   * Sends data and receives ACK's.
    *
    * @param sendSocket the socket used for communication.
    * @param requestedFile the file to send.
@@ -198,11 +190,12 @@ public class TftpServer {
    * @throws ServerException if no ACK is received after file is sent.
    */
   private void sendDataReceiveAck(DatagramSocket sendSocket, String requestedFile) 
-      throws IOException {
+      throws TimeoutException, IOException {
     byte[] fileData    = getFileData(requestedFile);
     int noPackets      = (int) Math.ceil(fileData.length / 511.9);
     byte[] header      = {0, OP_DAT, 0, 1}; //TODO: BLOCK NUMBER CAN BE TWO BYTES!
     int lastPacketSize = (fileData.length % 512) + header.length;
+    DatagramPacket ack = null;
 
     for (int i = 0; i < noPackets; i++) {
       // All packets but last one should be 516 bytes long.
@@ -211,14 +204,11 @@ public class TftpServer {
       bb.put(header).put(fileData, i * 512, packetLength - header.length);
       DatagramPacket packetToSend = new DatagramPacket(bb.array(), packetLength);
 
-      sendSocket.send(packetToSend);
-      if (retransmit(sendSocket, packetToSend) == null) {
-        break;
+      if ((ack = sendAndReceive(sendSocket, packetToSend)) == null) {
+        throw new TimeoutException("Client didn't respond in time.");
+      } else if (ack.getData()[OP_POS] != OP_ACK) {
+        throw new ServerException("No ACK was received.");
       }
-
-      // if (ack.getData()[OP_POS] != OP_ACK) {
-      //   throw new ServerException("No ACK was received."); //TODO: Temporary type of exception.  
-      // }                                                    //TODO: To be changed.
       header[OP_POS + 2] = (byte) (i + 2); //TODO: BLOCK NUMBER CAN BE TWO BYTES!
     }
   }
@@ -229,34 +219,31 @@ public class TftpServer {
    * @param sendSocket the socket to send and receive through.
    * @return the generated file.
    * @throws FileAlreadyExistsException if filename already exists.
+   * @throws TimeoutException if the client doesn't respond in time.
    */
-  private void generateFile(DatagramSocket sendSocket, String fileName) throws IOException {
-    //TODO: Finalize this.
-    byte[] ack = {0, OP_ACK, 0, 0};
-    DatagramPacket ackPacket = new DatagramPacket(ack, ack.length);    
-    sendSocket.send(ackPacket);
-    DatagramPacket receivedPacket = retransmit(sendSocket, ackPacket);
-    if (receivedPacket == null) {
-      throw new ServerException("Client didn't respond!");
-    }
-
+  private void getDataWriteFile(DatagramSocket sendSocket, String fileName)
+      throws TimeoutException, IOException {
     File fileToWrite = new File(fileName);
     if (fileToWrite.exists()) {
       throw new FileAlreadyExistsException("File already exists!");
     }
+    byte[] ack = {0, OP_ACK, 0, 0};
+    DatagramPacket ackPacket = new DatagramPacket(ack, ack.length);
+    DatagramPacket receivedPacket = sendAndReceive(sendSocket, ackPacket);
+    if (receivedPacket == null) {
+      throw new TimeoutException("Client didn't respond in time.");
+    }
 
     FileOutputStream fos = new FileOutputStream(fileToWrite);
     do {
-      System.out.println("0. " + receivedPacket.getData().length);
-      System.out.println("1. " + receivedPacket.getLength());
       byte[] data = receivedPacket.getData();
-      fos.write(data, HEADERSIZE, data.length - HEADERSIZE);
+      fos.write(data, HEADERSIZE, receivedPacket.getLength() - HEADERSIZE);
       ack[BLOCK_NR_POS]++;
       ackPacket = new DatagramPacket(ack, ack.length);
-      sendSocket.send(ackPacket);
-    } while (receivedPacket.getLength() == 516 
-          && (receivedPacket = retransmit(sendSocket, ackPacket)) != null);
-    //TODO: Blir något error i receivePacket() efter man tagit emot.
+    } while (receivedPacket.getLength() == 516
+          && (receivedPacket = sendAndReceive(sendSocket, ackPacket)) != null);
+    sendSocket.send(ackPacket);
+    // TODO: dally();
     fos.flush();
     fos.close();
   }
@@ -269,37 +256,22 @@ public class TftpServer {
    * @param last the packet to retransmit. 
    * @return Packet received.
    */
-  private DatagramPacket retransmit(DatagramSocket sendSocket, DatagramPacket last)
+  private DatagramPacket sendAndReceive(DatagramSocket sendSocket, DatagramPacket last)
       throws IOException {
-    //TODO: Maybe change the name of this method?
-    short blockNr = ByteBuffer.wrap(last.getData()).getShort(2);
-    DatagramPacket dp = null;
-    for (int i = 0; (i < 5); i++) {
-      if ((dp = receivePacket(sendSocket)) != null
-          && blockNr == ByteBuffer.wrap(dp.getData()).getShort(2)) {
-        return dp;
-      }
-      sendSocket.send(last);
-    }
-    return dp;
-  }
-
-  /**
-   * Tries to receive packet from client. 
-   *
-   * @param socket the socket used for communication.
-   * @return the received packet or null if the socket times out.
-   */
-  private DatagramPacket receivePacket(DatagramSocket sendSocket) throws IOException {
-    sendSocket.setSoTimeout(RETRANSMIT_TIME);
+    sendSocket.send(last);
     byte[] buf = new byte[BUFSIZE];
     DatagramPacket receivedPacket = new DatagramPacket(buf, buf.length);
-    try {
-      sendSocket.receive(receivedPacket);
-    } catch (SocketTimeoutException ste) {
-      return null;
+    for (int i = 0; (i < 5); i++) {
+      try {
+        sendSocket.setSoTimeout(RETRANSMIT_TIME);
+        sendSocket.receive(receivedPacket);
+        return receivedPacket;
+      } catch (SocketTimeoutException ste) {
+        sendSocket.send(last);
+      }
     }
-    return receivedPacket;
+
+    return null;
   }
 
   /**
@@ -309,7 +281,6 @@ public class TftpServer {
    */
   private void sendErr(DatagramSocket sendSocket, Error error) throws IOException {
     byte[] header = {0, OP_ERR, 0, error.code};
-
     byte[] packet = new byte[header.length + error.message.length + 1];
     
     System.arraycopy(header, 0, packet, 0, header.length);
