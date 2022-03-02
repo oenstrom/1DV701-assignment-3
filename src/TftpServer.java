@@ -10,6 +10,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.rmi.ServerException;
@@ -17,8 +18,9 @@ import java.rmi.ServerException;
 public class TftpServer {
   public static final int TFTPPORT = 4970;
   public static final int BUFSIZE = 516;
+  public static final int HEADERSIZE = 4;
   public static final int OP_POS = 1;
-  public static final int BLOCK_NR_POS = 1;
+  public static final int BLOCK_NR_POS = 3;
   public static final int RETRANSMIT_TIME = 5000;
   public static final String RUNDIR = System.getProperty("user.dir");
   public static final String READDIR = Paths.get(RUNDIR, "").toString() + File.separatorChar;
@@ -226,34 +228,37 @@ public class TftpServer {
    *
    * @param sendSocket the socket to send and receive through.
    * @return the generated file.
+   * @throws FileAlreadyExistsException if filename already exists.
    */
-  private File generateFile(DatagramSocket sendSocket, String fileName) throws IOException {
+  private void generateFile(DatagramSocket sendSocket, String fileName) throws IOException {
     //TODO: Finalize this.
     byte[] ack = {0, OP_ACK, 0, 0};
     DatagramPacket ackPacket = new DatagramPacket(ack, ack.length);    
     sendSocket.send(ackPacket);
-    DatagramPacket recievedPacket = retransmit(sendSocket, ackPacket);
-    if (recievedPacket == null) {
-      return null;
+    DatagramPacket receivedPacket = retransmit(sendSocket, ackPacket);
+    if (receivedPacket == null) {
+      throw new ServerException("Client didn't respond!");
     }
 
     File fileToWrite = new File(fileName);
     if (fileToWrite.exists()) {
-      return null; //TODO: Overwriting a file is not allowed. Send correct error!
+      throw new FileAlreadyExistsException("File already exists!");
     }
 
     FileOutputStream fos = new FileOutputStream(fileToWrite);
     do {
-      byte[] data = recievedPacket.getData();
-      fos.write(data, 4, data.length - 4);
-      ack[3]++;
+      System.out.println("0. " + receivedPacket.getData().length);
+      System.out.println("1. " + receivedPacket.getLength());
+      byte[] data = receivedPacket.getData();
+      fos.write(data, HEADERSIZE, data.length - HEADERSIZE);
+      ack[BLOCK_NR_POS]++;
       ackPacket = new DatagramPacket(ack, ack.length);
       sendSocket.send(ackPacket);
-    } while (recievedPacket.getData().length == 516 && (recievedPacket = retransmit(sendSocket, ackPacket)) != null);
+    } while (receivedPacket.getLength() == 516 
+          && (receivedPacket = retransmit(sendSocket, ackPacket)) != null);
     //TODO: Blir något error i receivePacket() efter man tagit emot.
     fos.flush();
     fos.close();
-    return null;
   }
 
   /**
