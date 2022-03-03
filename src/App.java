@@ -1,7 +1,5 @@
 import java.io.IOException;
 import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.net.SocketException;
 
 public class App {
   private static int TFTP_PORT = 4970;
