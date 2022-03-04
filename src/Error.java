@@ -1,3 +1,6 @@
+/**
+ * Enum representing TFTP errors.
+ */
 public enum Error {
   PREMATURE_TERMINATION((byte) 0, "The connection was terminated prematurly.".getBytes()),
   NOT_DEFINED((byte) 0, "Not defined.".getBytes()),
