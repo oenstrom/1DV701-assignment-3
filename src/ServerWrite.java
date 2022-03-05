@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -8,19 +9,18 @@ import java.nio.file.Path;
  * Class for handling write request.
  */
 public class ServerWrite extends Thread {
+  // TODO: Code dupl. from ServerRead?
   private String writeDir = Path.of(System.getProperty("user.dir"), "public").toString();
   private Packet.Write packet;
   private DatagramSocket socket;
-  private int retransmitLimit = 5;
+  private final int retransmitLimit = 5;
+  private final int timeOutMs = 4000;
+
 
   public ServerWrite(Packet.Write packet) {
     this.packet = packet;
   }
-
-  private void retrieveFile(File file) {
-
-  }
-
+  
   @Override
   public void run() {
     try {
@@ -33,15 +33,23 @@ public class ServerWrite extends Thread {
       socket.close();
       Thread.currentThread().interrupt();
     }
-
+    
     File file = new File(writeDir, packet.getFileName());
     if (validFile(file)) {
-      retrieveFile(file);
+      try {
+        retrieveFile(file);
+      } catch (IOException ioe) {
+        // TODO Auto-generated catch block
+        ioe.printStackTrace();
+      }
     } 
   }
   
-
-  private boolean validFile(File file) {
+  private void retrieveFile(File file) throws IOException {
+    //TODO Implement.
+  }
+  
+  private boolean validFile(File file) { //TODO Code dupl. from ServerRead.
     if (file.exists()) {
       // Send error 6.
     } else if (!file.isFile()) {

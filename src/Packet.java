@@ -6,6 +6,9 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
+/**
+ * Class that defines a TFTP Packet.
+ */
 public class Packet {
   protected byte[] buffer;
   private final int bufLen = 516; 
@@ -24,6 +27,9 @@ public class Packet {
   protected int contentLength;
   protected int packetLength;
 
+  /**
+   * Creates a buffer and defines start-content and -packet lengths.
+   */
   public Packet() {
     buffer = new byte[bufLen];
     //buf = new byte[512];
@@ -31,6 +37,12 @@ public class Packet {
     packetLength = 516;
   }
 
+  /**
+   * Receives a packet from the client and creates corresponding Packet.
+   *
+   * @param socket for communication to client.
+   * @return the Packet created.
+   */
   public Packet receive(DatagramSocket socket) throws IOException {
     DatagramPacket dp = new DatagramPacket(buffer, bufLen);
     socket.receive(dp);
@@ -57,9 +69,17 @@ public class Packet {
     return this.clientAddress;
   }
 
+  /**
+   * Abstract class for requests, i.e. Reads and Writes.
+   */
   public abstract class Request extends Packet {
     private String fileName;
 
+    /**
+     * Sets clientAddress, packet, contentLength and fileName for request packet.
+     *
+     * @param dp the packet for request.
+     */
     public Request(DatagramPacket dp) {
       clientAddress = new InetSocketAddress(dp.getAddress(), dp.getPort());
       packet = dp.getData();
@@ -71,11 +91,20 @@ public class Packet {
       }
       this.fileName = baos.toString();
     }
+
+    /**
+     * Getter for String fileName.
+     *
+     * @return fileName.
+     */
     public String getFileName() {
       return this.fileName;
     }
   }
 
+  /**
+   * Class representing TCPT-Read packet.
+   */
   public class Read extends Request {
 
     public Read(DatagramPacket dp) {
@@ -84,6 +113,9 @@ public class Packet {
 
   }
 
+  /**
+   * Class representing TCPT-Write packet.
+   */
   public class Write extends Request {
 
     public Write(DatagramPacket dp) {
@@ -92,12 +124,20 @@ public class Packet {
 
   }
 
+  /**
+   * Class representing TCPT-data packet.
+   */
   public class Data extends Packet {
 
     public Data() {}
 
+    /**
+     * Sets contentLength, packetLength and 'packet' for TCPT-Data packet.
+     *
+     * @param blockNr the block number corresponding to the TCPT_Data packet.
+     * @param fis the FileInputStream to read data.
+     */
     public Data(int blockNr, FileInputStream fis) throws IOException {
-      //contentLength = fis.read(buf);
       contentLength = fis.read(buffer, 0, 512);
       packetLength = contentLength + 4;
       packet = new byte[packetLength];
@@ -106,6 +146,9 @@ public class Packet {
     }
   }
 
+  /**
+   * Class representing TCPT-ACK packet.
+   */
   public class Acknowledgment extends Packet {
     private short blockNumber;
 
@@ -119,6 +162,9 @@ public class Packet {
     }
   }
 
+  /**
+   * Class representing TCPT-ERR packet.
+   */
   public class Error extends Packet {
   
   }

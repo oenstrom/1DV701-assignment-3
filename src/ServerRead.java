@@ -64,7 +64,6 @@ public class ServerRead extends Thread {
             throw new IllegalArgumentException("Not an ack packet");
             //TODO: Use some other exception, just picked one for now.
           }
-          //Packet.Acknowledgment a = (Packet.Acknowledgment) ack;
           if (((Packet.Acknowledgment) ack).getBlockNumber() != blockNr) {
             // Last packet lost
             packet.send(socket);
