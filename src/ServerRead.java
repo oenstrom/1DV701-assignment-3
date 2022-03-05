@@ -11,11 +11,11 @@ import java.nio.file.Path;
  */
 public class ServerRead extends Thread {
   private String readDir = Path.of(System.getProperty("user.dir"), "public").toString();
-  private Packet.ReadPacket rp;
+  private Packet.Read rp;
   private DatagramSocket socket;
   private int retransmitLimit = 5;
 
-  public ServerRead(Packet.ReadPacket rp) {
+  public ServerRead(Packet.Read rp) {
     this.rp = rp;
   }
 
@@ -32,7 +32,7 @@ public class ServerRead extends Thread {
       Thread.currentThread().interrupt();
     }
 
-    File file = new File(readDir, rp.fileName());
+    File file = new File(readDir, rp.getFileName());
     if (validFile(file)) {
       try {
         sendFile(file);
@@ -56,16 +56,16 @@ public class ServerRead extends Thread {
       socket.setSoTimeout(4000);
       Packet packet = new Packet();
       for (short blockNr = 1; packet.getContentLength() == 512; blockNr++) {
-        packet = packet.new DataPacket(blockNr, fis);
+        packet = packet.new Data(blockNr, fis);
         packet.send(socket);
         for (int i = 0; i < retransmitLimit; i++) {
           Packet ack = new Packet().receive(socket);
-          if (!(ack instanceof Packet.AcknowledgmentPacket)) {
+          if (!(ack instanceof Packet.Acknowledgment)) {
             throw new IllegalArgumentException("Not an ack packet");
             //TODO: Use some other exception, just picked one for now.
           }
-          Packet.AcknowledgmentPacket a = (Packet.AcknowledgmentPacket) ack;
-          if (a.getBlockNumber() != blockNr) {
+          //Packet.Acknowledgment a = (Packet.Acknowledgment) ack;
+          if (((Packet.Acknowledgment) ack).getBlockNumber() != blockNr) {
             // Last packet lost
             packet.send(socket);
             continue;
@@ -78,6 +78,13 @@ public class ServerRead extends Thread {
   }
 
   private boolean validFile(File file) {
+    if (file.exists()) {
+      // Send error 6.
+    } else if (!file.isFile()) {
+      //send error 1
+    } else if (!file.canRead()) {
+      //Send error 2
+    }
     return file.exists() && file.isFile() && file.canRead();
   }
 }

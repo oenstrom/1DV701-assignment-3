@@ -25,10 +25,10 @@ public class App {
       while (true) {
         Packet packet = new Packet().receive(socket);
 
-        if (packet instanceof Packet.ReadPacket) {
-          new ServerRead((Packet.ReadPacket) packet).start();
-        } else if (packet instanceof Packet.WritePacket) {
-          new ServerWrite().start();
+        if (packet instanceof Packet.Read) {
+          new ServerRead((Packet.Read) packet).start();
+        } else if (packet instanceof Packet.Write) {
+          new ServerWrite((Packet.Write) packet).start();
         }
       }
     } catch (IOException e) {
