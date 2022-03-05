@@ -34,9 +34,14 @@ public class ServerRead extends Thread {
 
     File file = new File(readDir, rp.fileName());
     if (validFile(file)) {
-      sendFile(file);
+      try {
+        sendFile(file);
+      } catch (IOException e) {
+        // TODO Try to send error message and terminate thread.
+        e.printStackTrace();
+      }
     } else {
-      // Send error "Access Violation"
+      // TODO Send error "Access Violation"
       System.out.println("Access Violation");
     }
   }
@@ -46,14 +51,13 @@ public class ServerRead extends Thread {
    *
    * @param fileToSend the file to read bytes from.
    */
-  private void sendFile(File fileToSend) {
+  private void sendFile(File fileToSend) throws IOException {
     try (FileInputStream fis = new FileInputStream(fileToSend)) {
       socket.setSoTimeout(4000);
       Packet packet = new Packet();
       for (short blockNr = 1; packet.getContentLength() == 512; blockNr++) {
         packet = packet.new DataPacket(blockNr, fis);
         packet.send(socket);
-
         for (int i = 0; i < retransmitLimit; i++) {
           Packet ack = new Packet().receive(socket);
           if (!(ack instanceof Packet.AcknowledgmentPacket)) {
@@ -66,14 +70,10 @@ public class ServerRead extends Thread {
             packet.send(socket);
             continue;
           }
-          System.out.println("Ack received!");
           break;
         }
       }
-      System.out.println("DONE!");
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      System.out.println("File '" + fileToSend.getName() + "' sent.");
     }
   }
 
