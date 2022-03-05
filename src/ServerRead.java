@@ -23,7 +23,7 @@ public class ServerRead extends Thread {
   public void run() {
     try {
       socket = new DatagramSocket(0);
-      InetSocketAddress ca = rp.clientAddress;
+      InetSocketAddress ca = rp.getClientAddress();
       socket.connect(ca);
       System.out.printf("Read request from %s using port %d\n", ca.getAddress(), ca.getPort());
     } catch (SocketException e) {
@@ -50,7 +50,7 @@ public class ServerRead extends Thread {
     try (FileInputStream fis = new FileInputStream(fileToSend)) {
       socket.setSoTimeout(4000);
       Packet packet = new Packet();
-      for (short blockNr = 1; packet.contentLength == 512; blockNr++) {
+      for (short blockNr = 1; packet.getContentLength() == 512; blockNr++) {
         packet = packet.new DataPacket(blockNr, fis);
         packet.send(socket);
 
@@ -61,7 +61,7 @@ public class ServerRead extends Thread {
             //TODO: Use some other exception, just picked one for now.
           }
           Packet.AcknowledgmentPacket a = (Packet.AcknowledgmentPacket) ack;
-          if (a.blockNumber() != blockNr) {
+          if (a.getBlockNumber() != blockNr) {
             // Last packet lost
             packet.send(socket);
             continue;

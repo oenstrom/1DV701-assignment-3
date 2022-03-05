@@ -6,16 +6,16 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
-class Packet {
-  protected static short opcode;
-  protected static byte[] buffer;
-  protected static  final int bufLen = 516; 
+public class Packet {
+  protected byte[] buffer;
+  private final int bufLen = 516; 
   
-  protected static final short RRQ  = 1;
-  protected static final short WRQ  = 2;
-  protected static final short DATA = 3;
-  protected static final short ACK  = 4;
-  protected static final short ERR  = 5;
+  // OP CODES.
+  private final short opRrq  = 1;
+  private final short opWrq  = 2;
+  private final short opData = 3;
+  private final short opAck  = 4;
+  private final short opErr  = 5;
   
   // Individual packet fields
   protected DatagramSocket sendSocket;
@@ -24,22 +24,22 @@ class Packet {
   protected int contentLength;
   protected int packetLength;
 
-  Packet() {
+  public Packet() {
     buffer = new byte[bufLen];
     contentLength = 512;
     packetLength = 516;
   }
 
-  Packet receive(DatagramSocket socket) throws IOException {
+  public Packet receive(DatagramSocket socket) throws IOException {
     DatagramPacket dp = new DatagramPacket(buffer, bufLen);
     socket.receive(dp);
   
     switch (ByteBuffer.wrap(buffer).getShort()) {
-      case(RRQ):  return new ReadPacket(dp);
-      case(WRQ):  return new WritePacket();
-      case(DATA): return new DataPacket(); 
-      case(ACK):  return new AcknowledgmentPacket(dp);
-      case(ERR):  return new ErrorPacket();
+      case(opRrq):  return new ReadPacket(dp);
+      case(opWrq):  return new WritePacket();
+      case(opData): return new DataPacket(); 
+      case(opAck):  return new AcknowledgmentPacket(dp);
+      case(opErr):  return new ErrorPacket();
       default:    return null;
     }
   }
@@ -48,7 +48,15 @@ class Packet {
     socket.send(new DatagramPacket(content, packetLength));
   }
 
-  class RequestPacket extends Packet {
+  public int getContentLength() {
+    return this.contentLength;
+  }
+
+  public InetSocketAddress getClientAddress() {
+    return this.clientAddress;
+  }
+
+  public class RequestPacket extends Packet {
     public String fileName() {
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
       for (int i = 2; content[i] != Character.MIN_VALUE; i++) {
@@ -58,41 +66,45 @@ class Packet {
     }
   }
 
-  class ReadPacket extends RequestPacket {
-    ReadPacket(DatagramPacket dp) {
+  public class ReadPacket extends RequestPacket {
+    public ReadPacket(DatagramPacket dp) {
       clientAddress = new InetSocketAddress(dp.getAddress(), dp.getPort());
       content = dp.getData();
       contentLength = dp.getLength();
     }
   }
 
-  class WritePacket extends RequestPacket {
+  public class WritePacket extends RequestPacket {
 
   }
 
-  class DataPacket extends Packet {
-    DataPacket() {}
+  public class DataPacket extends Packet {
 
-    DataPacket(int blockNr, FileInputStream fis) throws IOException {
+    public DataPacket() {}
+
+    public DataPacket(int blockNr, FileInputStream fis) throws IOException {
       contentLength = fis.read(buffer);
       packetLength = contentLength + 4;
       content = new byte[packetLength];
       ByteBuffer bb = ByteBuffer.wrap(content);
-      bb.putShort(DATA).putShort((short) blockNr).put(buffer, 0, contentLength);
+      bb.putShort(opData).putShort((short) blockNr).put(buffer, 0, contentLength);
     }
   }
 
-  class AcknowledgmentPacket extends Packet {
-    AcknowledgmentPacket(DatagramPacket dp) {
+  public class AcknowledgmentPacket extends Packet {
+    private short blockNumber;
+
+    public AcknowledgmentPacket(DatagramPacket dp) {
       content = dp.getData();
+      this.blockNumber = ByteBuffer.wrap(content).getShort(2);
     }
 
-    public short blockNumber() {
-      return ByteBuffer.wrap(content).getShort(2);
+    public short getBlockNumber() {
+      return this.blockNumber;
     }
   }
 
-  class ErrorPacket extends Packet {
+  public class ErrorPacket extends Packet {
   
   }
 }
