@@ -29,9 +29,10 @@ public class App {
         Packet packet = new Packet(socket).receive();
 
         if (packet instanceof Read) {
+          System.out.print("Read ");
           new ServerRead((Read) packet).start();
         } else if (packet instanceof Write) {
-          //TODO Catch ConnectException, send error 1 permature termination
+          System.out.print("Write ");
           new ServerWrite((Write) packet).start();
         }
       }

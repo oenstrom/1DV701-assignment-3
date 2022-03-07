@@ -10,13 +10,16 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.rmi.ServerException;
 import java.util.concurrent.TimeoutException;
+import packet.ErrorType;
 
+/**
+ * TFTP server.
+ */
 public class TftpServer {
   public static final int TFTPPORT = 4970;
   public static final int BUFSIZE = 516;
@@ -70,7 +73,7 @@ public class TftpServer {
       }
 
       final StringBuffer requestedFile = new StringBuffer();
-      final int reqtype = parseRQ(buf, requestedFile);
+      final int reqtype = parseRq(buf, requestedFile);
 
       new Thread() {
         public void run() {
@@ -90,7 +93,7 @@ public class TftpServer {
                 break;
               default:
                 System.err.println("Invalid request. Sending an error packet.");
-                sendErr(sendSocket, Error.ILLEGAL_OPERATION);
+                sendErr(sendSocket, ErrorType.ILLEGAL_OPERATION);
                 break;
             }
           } catch (IOException ioe) {
@@ -106,7 +109,7 @@ public class TftpServer {
   /**
    * Reads the first block of data, i.e., the request for an action (read or
    * write).
-   * 
+   *
    * @param socket (socket to read from)
    * @param buf    (where to store the read data)
    * @return socketAddress (the socket address of the client)
@@ -127,9 +130,9 @@ public class TftpServer {
     try {
       getDataWriteFile(sendSocket, requestedFile);
     } catch (TimeoutException te) {
-      sendErr(sendSocket, Error.PREMATURE_TERMINATION);
+      sendErr(sendSocket, ErrorType.PREMATURE_TERMINATION);
     } catch (FileAlreadyExistsException faee) {
-      sendErr(sendSocket, Error.FILE_ALREADY_EXISTS);
+      sendErr(sendSocket, ErrorType.FILE_ALREADY_EXISTS);
     }
   }
 
@@ -143,10 +146,10 @@ public class TftpServer {
     try {
       sendData(sendSocket, requestedFile); 
     } catch (TimeoutException te) {
-      sendErr(sendSocket, Error.PREMATURE_TERMINATION);
+      sendErr(sendSocket, ErrorType.PREMATURE_TERMINATION);
     } catch (FileNotFoundException fnfe) {
       System.err.println(fnfe.getLocalizedMessage());
-      sendErr(sendSocket, Error.FILE_NOT_FOUND);
+      sendErr(sendSocket, ErrorType.FILE_NOT_FOUND);
     }
   }
 
@@ -157,7 +160,7 @@ public class TftpServer {
    * @param requestedFile (name of file to read/write)
    * @return opcode (request type: RRQ or WRQ)
    */
-  private int parseRQ(byte[] buf, StringBuffer requestedFile) {
+  private int parseRq(byte[] buf, StringBuffer requestedFile) {
     char[] charBuf = new String(buf).toCharArray();
     for (int i = 2; charBuf[i] != Character.MIN_VALUE; i++) {
       requestedFile.append(charBuf[i]);
@@ -279,8 +282,8 @@ public class TftpServer {
    *
    * @param error the error code to be sent with the following error message.
    */
-  private void sendErr(DatagramSocket sendSocket, Error error) throws IOException {
-    byte[] header = {0, OP_ERR, 0, error.code};
+  private void sendErr(DatagramSocket sendSocket, ErrorType error) throws IOException {
+    byte[] header = {0, OP_ERR, 0, (byte) error.code};
     byte[] packet = new byte[header.length + error.message.length + 1];
     
     System.arraycopy(header, 0, packet, 0, header.length);

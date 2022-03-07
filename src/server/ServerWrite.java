@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.ConnectException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import packet.Acknowledgment;
 import packet.Data;
@@ -47,7 +48,7 @@ public class ServerWrite extends Server {
 
   @Override
   protected void validFile(File file) 
-      throws FileAlreadyExistsException, FileNotFoundException, IllegalAccessException {
+      throws FileAlreadyExistsException, FileNotFoundException, AccessDeniedException {
     if (file.exists()) {
       throw new FileAlreadyExistsException("File " + file.getName() + " already exists");
     }
@@ -58,7 +59,7 @@ public class ServerWrite extends Server {
       file.createNewFile();
     } catch (IOException e) {
       e.printStackTrace();
-      throw new IllegalAccessException("Access violation");
+      throw new AccessDeniedException("Access violation");
     }
   }
 }

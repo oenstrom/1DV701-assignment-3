@@ -59,14 +59,19 @@ public class Data extends Packet {
   /**
    * Retransmit a packet.
    *
-   * @param blockNumber the block number to check.
    * @return the received data packet.
    * @throws ConnectException if the client doesn't respond.
    */
-  public Acknowledgment retransmit(short blockNumber) throws IOException, ConnectException {
-    Packet p = new Packet(socket).receive();
-    for (int i = 0; !(p instanceof Acknowledgment
-        && ((Acknowledgment) p).getBlockNumber() == blockNumber); i++) {
+  public Acknowledgment retransmit() throws IOException, ConnectException {
+    //TODO: Can this be done better?
+    Packet p;
+    try {
+      p = new Packet(socket).receive();
+    } catch (SocketTimeoutException e) {
+      p = new Acknowledgment(socket, (short) 0);
+    }
+    for (int i = 0; !(p instanceof Acknowledgment)
+        || ((Acknowledgment) p).getBlockNumber() != blockNumber; i++) {
       send(socket);
       try {
         p = p.receive();
