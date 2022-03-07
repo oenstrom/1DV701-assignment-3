@@ -15,9 +15,8 @@ import packet.Request;
  */
 public abstract class Server extends Thread {
   protected String readDir = Path.of(System.getProperty("user.dir"), "public").toString();
-  protected final int retransmitLimit = 5;
-  protected final int timeOutMs = 4000;
-  protected DatagramSocket socket;
+  protected final int timeOutMs = 400;
+  public DatagramSocket socket;
   protected Request packet;
   
   @Override

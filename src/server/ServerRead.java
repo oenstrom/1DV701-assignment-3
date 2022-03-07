@@ -4,7 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import packet.Acknowledgment;
+import java.net.ConnectException;
 import packet.Data;
 import packet.Packet;
 import packet.Read;
@@ -24,27 +24,24 @@ public class ServerRead extends Server {
    * @param fileToSend the file to read bytes from.
    */
   @Override
-  protected void handleFile(File fileToSend) throws IOException {
+  protected void handleFile(File fileToSend) throws ConnectException, IOException {
     try (FileInputStream fis = new FileInputStream(fileToSend)) {
       socket.setSoTimeout(timeOutMs);
-      Packet packet = new Packet();
-      for (short blockNr = 1; packet.getContentLength() == 512; blockNr++) {
-        packet = new Data(blockNr, fis);
-        packet.send(socket);
-        for (int i = 0; i < retransmitLimit; i++) {
-          Packet ack = new Packet().receive(socket);
-          if (!(ack instanceof Acknowledgment)) {
-            throw new IllegalArgumentException("Not an ack packet");
-            //TODO: Use some other exception, just picked one for now.
-          }
-          if (((Acknowledgment) ack).getBlockNumber() != blockNr) {
-            // Last packet lost
-            packet.send(socket);
-            continue;
-          }
-          break;
-        }
-      }
+      
+      Data p;
+      short blockNr = 1;
+      do {
+        p = new Data(socket, blockNr, fis);
+        p.send(socket);
+        p.retransmit(blockNr++);
+      } while (p.getContentLength() == Packet.MAX_CONTENT_LENGTH);
+
+      // Data packet = new Data(socket, (short) 1, fis);
+      // for (short blockNr = 1; packet.getContentLength() == 512; blockNr++) {
+      //   packet.send(socket);
+      //   Acknowledgment ack = packet.retransmit(blockNr);
+      //   packet = new Data()
+      // }
       System.out.println("File '" + fileToSend.getName() + "' sent.");
     }
   }

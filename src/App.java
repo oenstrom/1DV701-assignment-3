@@ -26,11 +26,12 @@ public class App {
       System.out.printf("Listening at port %d for new requests\n", TFTP_PORT);
   
       while (true) {
-        Packet packet = new Packet().receive(socket);
+        Packet packet = new Packet(socket).receive();
 
         if (packet instanceof Read) {
           new ServerRead((Read) packet).start();
         } else if (packet instanceof Write) {
+          //TODO Catch ConnectException, send error 1 permature termination
           new ServerWrite((Write) packet).start();
         }
       }

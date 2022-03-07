@@ -2,6 +2,7 @@ package packet;
 
 import java.io.ByteArrayOutputStream;
 import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 
 /**
@@ -15,7 +16,8 @@ public abstract class Request extends Packet {
    *
    * @param dp the packet for request.
    */
-  public Request(DatagramPacket dp) {
+  public Request(DatagramSocket socket, DatagramPacket dp) {
+    super(socket);
     clientAddress = new InetSocketAddress(dp.getAddress(), dp.getPort());
     packet = dp.getData();
     contentLength = dp.getLength();

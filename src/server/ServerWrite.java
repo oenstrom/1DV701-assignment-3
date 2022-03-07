@@ -4,8 +4,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.nio.file.FileAlreadyExistsException;
 import packet.Acknowledgment;
+import packet.Data;
 import packet.Packet;
 import packet.Write;
 
@@ -19,26 +21,28 @@ public class ServerWrite extends Server {
   }
 
   @Override
-  protected void handleFile(File file) throws IOException {
+  protected void handleFile(File file) throws ConnectException, IOException {
     socket.setSoTimeout(timeOutMs);
-    Acknowledgment ack = new Acknowledgment();
+    short blockNr = 0;
+    Acknowledgment ack = new Acknowledgment(socket, blockNr++);
     ack.send(socket);
-    // for (int i = 0; i < retransmitLimit; i++) {
-    //   Packet packet = new Packet().receive(socket);
-    //   if (!(packet instanceof Packet.Data)) {
-    //     ack.send(socket);
-    //   } else {
-    //     // Do the tango.
-    //     break;
-    //   }
 
-    // }
-    Packet packet = new Packet().receive(socket);
     FileOutputStream fos = new FileOutputStream(file);
-
-    for (int i = 0; packet.getContentLength() == Packet.MAX_CONTENT_LENGTH; i++) {
-      
-    }
+    Data p;
+    do {
+      try {
+        p = ack.retransmit(blockNr);
+      } catch (ConnectException e) {
+        fos.close();
+        throw e;
+      }
+      fos.write(p.getContent());
+      ack = new Acknowledgment(socket, blockNr++);
+      ack.send(socket);
+    } while (p.getContentLength() == Packet.MAX_CONTENT_LENGTH);
+    //TODO dally();
+    fos.flush();
+    fos.close();
   }
 
   @Override
@@ -46,10 +50,15 @@ public class ServerWrite extends Server {
       throws FileAlreadyExistsException, FileNotFoundException, IllegalAccessException {
     if (file.exists()) {
       throw new FileAlreadyExistsException("File " + file.getName() + " already exists");
-    } else if (!file.isFile()) {
+    }
+    if (file.isDirectory()) {
       throw new FileNotFoundException("File " + file.getName() + " is a directory.");
-    } else if (!file.canRead()) {
-      throw new IllegalAccessException("Access violation!");
+    }
+    try {
+      file.createNewFile();
+    } catch (IOException e) {
+      e.printStackTrace();
+      throw new IllegalAccessException("Access violation");
     }
   }
 }

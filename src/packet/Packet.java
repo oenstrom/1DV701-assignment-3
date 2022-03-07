@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
  * Class that defines a TFTP Packet.
  */
 public class Packet {
+  public static final int RETRANSMIT_LIMIT = 5;
   public static final int MAX_CONTENT_LENGTH = 512;
   protected final int bufferLen = 516;
   protected byte[] buffer;
@@ -22,7 +23,7 @@ public class Packet {
   protected final short opErr  = 5;
   
   // Individual packet fields
-  protected DatagramSocket sendSocket;
+  protected DatagramSocket socket;
   protected InetSocketAddress clientAddress;
   protected byte[] packet;
   protected int contentLength;
@@ -31,7 +32,8 @@ public class Packet {
   /**
    * Creates a buffer and defines start-content and -packet lengths.
    */
-  public Packet() {
+  public Packet(DatagramSocket socket) {
+    this.socket = socket;
     buffer = new byte[bufferLen];
     contentLength = 512;
     packetLength = 516;
@@ -40,19 +42,18 @@ public class Packet {
   /**
    * Receives a packet from the client and creates corresponding Packet.
    *
-   * @param socket for communication to client.
    * @return the Packet created.
    */
-  public Packet receive(DatagramSocket socket) throws IOException {
+  public Packet receive() throws IOException {
     DatagramPacket dp = new DatagramPacket(buffer, bufferLen);
     socket.receive(dp);
   
     switch (ByteBuffer.wrap(buffer).getShort()) {
-      case(opRrq):  return new Read(dp);
-      case(opWrq):  return new Write(dp);
-      case(opData): return new Data(dp); 
-      case(opAck):  return new Acknowledgment(dp);
-      case(opErr):  return new Error();
+      case(opRrq):  return new Read(socket, dp);
+      case(opWrq):  return new Write(socket, dp);
+      case(opData): return new Data(socket, dp); 
+      case(opAck):  return new Acknowledgment(socket, dp);
+      case(opErr):  return new Error(socket);
       default:      return null; // TODO Handle null.
     }
   }
@@ -67,5 +68,9 @@ public class Packet {
 
   public InetSocketAddress getClientAddress() {
     return this.clientAddress;
+  }
+
+  public byte[] getPacket() {
+    return this.packet;
   }
 }
