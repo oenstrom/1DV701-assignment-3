@@ -1,5 +1,6 @@
+package server;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.DatagramSocket;
@@ -7,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
+import packet.Request;
 
 /**
  * Abstract class for ServerRead and ServerWrite.
@@ -16,7 +18,7 @@ public abstract class Server extends Thread {
   protected final int retransmitLimit = 5;
   protected final int timeOutMs = 4000;
   protected DatagramSocket socket;
-  protected Packet.Request packet;
+  protected Request packet;
   
   @Override
   public void run() {

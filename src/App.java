@@ -1,6 +1,11 @@
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import packet.Packet;
+import packet.Read;
+import packet.Write;
+import server.ServerRead;
+import server.ServerWrite;
 
 /**
  * Entry point for the TFTP server.
@@ -23,10 +28,10 @@ public class App {
       while (true) {
         Packet packet = new Packet().receive(socket);
 
-        if (packet instanceof Packet.Read) {
-          new ServerRead((Packet.Read) packet).start();
-        } else if (packet instanceof Packet.Write) {
-          new ServerWrite((Packet.Write) packet).start();
+        if (packet instanceof Read) {
+          new ServerRead((Read) packet).start();
+        } else if (packet instanceof Write) {
+          new ServerWrite((Write) packet).start();
         }
       }
     } catch (IOException e) {

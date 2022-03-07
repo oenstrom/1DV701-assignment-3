@@ -1,15 +1,20 @@
+package server;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
+import packet.Acknowledgment;
+import packet.Data;
+import packet.Packet;
+import packet.Read;
 
 /**
  * Class for handling read request.
  */
 public class ServerRead extends Server {
 
-  public ServerRead(Packet.Read packet) {
+  public ServerRead(Read packet) {
     this.packet = packet;
   }
 
@@ -21,18 +26,18 @@ public class ServerRead extends Server {
   @Override
   protected void handleFile(File fileToSend) throws IOException {
     try (FileInputStream fis = new FileInputStream(fileToSend)) {
-      socket.setSoTimeout(4000);
+      socket.setSoTimeout(timeOutMs);
       Packet packet = new Packet();
       for (short blockNr = 1; packet.getContentLength() == 512; blockNr++) {
-        packet = packet.new Data(blockNr, fis);
+        packet = new Data(blockNr, fis);
         packet.send(socket);
         for (int i = 0; i < retransmitLimit; i++) {
           Packet ack = new Packet().receive(socket);
-          if (!(ack instanceof Packet.Acknowledgment)) {
+          if (!(ack instanceof Acknowledgment)) {
             throw new IllegalArgumentException("Not an ack packet");
             //TODO: Use some other exception, just picked one for now.
           }
-          if (((Packet.Acknowledgment) ack).getBlockNumber() != blockNr) {
+          if (((Acknowledgment) ack).getBlockNumber() != blockNr) {
             // Last packet lost
             packet.send(socket);
             continue;
