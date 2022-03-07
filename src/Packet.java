@@ -103,7 +103,7 @@ public class Packet {
   }
 
   /**
-   * Class representing TCPT-Read packet.
+   * Class representing TFTP-Read packet.
    */
   public class Read extends Request {
 
@@ -114,7 +114,7 @@ public class Packet {
   }
 
   /**
-   * Class representing TCPT-Write packet.
+   * Class representing TFTP-Write packet.
    */
   public class Write extends Request {
 
@@ -125,16 +125,16 @@ public class Packet {
   }
 
   /**
-   * Class representing TCPT-data packet.
+   * Class representing TFTP-data packet.
    */
   public class Data extends Packet {
 
     public Data() {}
 
     /**
-     * Sets contentLength, packetLength and 'packet' for TCPT-Data packet.
+     * Sets contentLength, packetLength and 'packet' for TFTP-Data packet.
      *
-     * @param blockNr the block number corresponding to the TCPT_Data packet.
+     * @param blockNr the block number corresponding to the TFTP_Data packet.
      * @param fis the FileInputStream to read data.
      */
     public Data(int blockNr, FileInputStream fis) throws IOException {
@@ -147,7 +147,7 @@ public class Packet {
   }
 
   /**
-   * Class representing TCPT-ACK packet.
+   * Class representing TFTP-ACK packet.
    */
   public class Acknowledgment extends Packet {
     private short blockNumber;
@@ -163,7 +163,7 @@ public class Packet {
   }
 
   /**
-   * Class representing TCPT-ERR packet.
+   * Class representing TFTP-ERR packet.
    */
   public class Error extends Packet {
   

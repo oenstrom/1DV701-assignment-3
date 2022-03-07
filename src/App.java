@@ -17,9 +17,7 @@ public class App {
       System.exit(1);
     }
 
-    try {
-      DatagramSocket socket = new DatagramSocket(null);
-      socket.bind(new InetSocketAddress(TFTP_PORT));
+    try (DatagramSocket socket = new DatagramSocket(new InetSocketAddress(TFTP_PORT))) { 
       System.out.printf("Listening at port %d for new requests\n", TFTP_PORT);
   
       while (true) {
