@@ -32,7 +32,6 @@ public class Packet {
    */
   public Packet() {
     buffer = new byte[bufLen];
-    //buf = new byte[512];
     contentLength = 512;
     packetLength = 516;
   }
@@ -53,7 +52,7 @@ public class Packet {
       case(opData): return new Data(); 
       case(opAck):  return new Acknowledgment(dp);
       case(opErr):  return new Error();
-      default:    return null;
+      default:      return null; // TODO Handle null.
     }
   }
 
@@ -155,6 +154,15 @@ public class Packet {
     public Acknowledgment(DatagramPacket dp) {
       packet = dp.getData();
       this.blockNumber = ByteBuffer.wrap(packet).getShort(2);
+    }
+
+    /**
+     * Constructor for write request ack.
+     */
+    public Acknowledgment() {
+      packetLength = 4;
+      blockNumber = 0;
+      packet = ByteBuffer.allocate(packetLength).putShort(opAck).putShort(blockNumber).array();
     }
 
     public short getBlockNumber() {

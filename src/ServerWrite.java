@@ -1,6 +1,7 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.DatagramPacket;
 import java.nio.file.FileAlreadyExistsException;
 
 /**
@@ -14,7 +15,8 @@ public class ServerWrite extends Server {
 
   @Override
   protected void handleFile(File file) throws IOException {
-    // TODO Auto-generated method stub
+    Packet.Acknowledgment ack = new Packet().new Acknowledgment();
+    ack.send(socket);
     
   }
 
