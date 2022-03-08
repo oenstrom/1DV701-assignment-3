@@ -6,7 +6,7 @@ import os
 @pytest.fixture(scope="module")
 def client():
     import tftpclient
-    return tftpclient.TFTPClient(('localhost', 69), os.getcwd() + '\\src')
+    return tftpclient.TFTPClient(('localhost', 4970), os.getcwd() + '/../public')
 
 
 # Get existing 50 byte file
