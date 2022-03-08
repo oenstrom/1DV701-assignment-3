@@ -15,7 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.rmi.ServerException;
 import java.util.concurrent.TimeoutException;
-import packet.ErrorType;
+import packet.Error.Type;
 
 /**
  * TFTP server.
@@ -93,7 +93,7 @@ public class TftpServer {
                 break;
               default:
                 System.err.println("Invalid request. Sending an error packet.");
-                sendErr(sendSocket, ErrorType.ILLEGAL_OPERATION);
+                sendErr(sendSocket, Type.ILLEGAL_OPERATION);
                 break;
             }
           } catch (IOException ioe) {
@@ -130,9 +130,9 @@ public class TftpServer {
     try {
       getDataWriteFile(sendSocket, requestedFile);
     } catch (TimeoutException te) {
-      sendErr(sendSocket, ErrorType.PREMATURE_TERMINATION);
+      sendErr(sendSocket, Type.PREMATURE_TERMINATION);
     } catch (FileAlreadyExistsException faee) {
-      sendErr(sendSocket, ErrorType.FILE_ALREADY_EXISTS);
+      sendErr(sendSocket, Type.FILE_ALREADY_EXISTS);
     }
   }
 
@@ -146,10 +146,10 @@ public class TftpServer {
     try {
       sendData(sendSocket, requestedFile); 
     } catch (TimeoutException te) {
-      sendErr(sendSocket, ErrorType.PREMATURE_TERMINATION);
+      sendErr(sendSocket, Type.PREMATURE_TERMINATION);
     } catch (FileNotFoundException fnfe) {
       System.err.println(fnfe.getLocalizedMessage());
-      sendErr(sendSocket, ErrorType.FILE_NOT_FOUND);
+      sendErr(sendSocket, Type.FILE_NOT_FOUND);
     }
   }
 
@@ -282,7 +282,7 @@ public class TftpServer {
    *
    * @param error the error code to be sent with the following error message.
    */
-  private void sendErr(DatagramSocket sendSocket, ErrorType error) throws IOException {
+  private void sendErr(DatagramSocket sendSocket, Type error) throws IOException {
     byte[] header = {0, OP_ERR, 0, (byte) error.code};
     byte[] packet = new byte[header.length + error.message.length + 1];
     

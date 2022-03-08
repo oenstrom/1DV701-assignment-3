@@ -10,7 +10,6 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import packet.Error;
-import packet.ErrorType;
 import packet.Request;
 
 /**
@@ -36,25 +35,25 @@ public abstract class Server extends Thread {
         handleFile(file);
       } catch (FileAlreadyExistsException e) {
         System.err.println("Write request to a file that already exists.");
-        new Error(socket, ErrorType.FILE_ALREADY_EXISTS).send();
+        new Error(socket, Error.Type.FILE_ALREADY_EXISTS).send();
       } catch (FileNotFoundException e) {
         if (e.getLocalizedMessage().toLowerCase().contains("access is denied")) {
           System.err.println("The requested file could not be read.");
-          new Error(socket, ErrorType.ACCESS_VIOLATION).send();
+          new Error(socket, Error.Type.ACCESS_VIOLATION).send();
         } else {
           System.err.println("The requested file could not be found.");
-          new Error(socket, ErrorType.FILE_NOT_FOUND).send();
+          new Error(socket, Error.Type.FILE_NOT_FOUND).send();
         }
       } catch (AccessDeniedException e) {
         System.err.println("The requested file could not be read.");
-        new Error(socket, ErrorType.ACCESS_VIOLATION).send();
+        new Error(socket, Error.Type.ACCESS_VIOLATION).send();
       } catch (ConnectException e) {
         System.err.println("Timeout. The connection has been terminated.");
-        new Error(socket, ErrorType.PREMATURE_TERMINATION).send();
+        new Error(socket, Error.Type.PREMATURE_TERMINATION).send();
       }
     } catch (IOException e) {
       try {
-        new Error(socket, ErrorType.PREMATURE_TERMINATION).send();
+        new Error(socket, Error.Type.PREMATURE_TERMINATION).send();
       } catch (IOException e1) {
         System.err.println("Could not send error message.");
       }
