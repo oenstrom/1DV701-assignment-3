@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import packet.Error;
 import packet.Packet;
 import packet.Read;
 import packet.Write;
@@ -34,6 +35,10 @@ public class App {
         } else if (packet instanceof Write) {
           System.out.print("Write ");
           new ServerWrite((Write) packet).start();
+        } else {
+          DatagramSocket ds = new DatagramSocket(packet.getClientAddress());
+          ds.connect(packet.getClientAddress());
+          new Error(ds, Error.Type.ILLEGAL_OPERATION).send();
         }
       }
     } catch (IOException e) {

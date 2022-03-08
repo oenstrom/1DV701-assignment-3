@@ -48,15 +48,16 @@ public class Packet {
   public Packet receive() throws IOException {
     DatagramPacket dp = new DatagramPacket(buffer, bufferLen);
     socket.receive(dp);
-  
+    
     switch (ByteBuffer.wrap(buffer).getShort()) {
       case(opRrq):  return new Read(socket, dp);
       case(opWrq):  return new Write(socket, dp);
       case(opData): return new Data(socket, dp); 
       case(opAck):  return new Acknowledgment(socket, dp);
       case(opErr):  throw new ConnectException("Error received. Terminating connection.");
-      // return new Error(socket);
-      default:      return null; // TODO Handle null.
+      default:
+        clientAddress = new InetSocketAddress(dp.getAddress(), dp.getPort()); 
+        return this;
     }
   }
 
