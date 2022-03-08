@@ -72,7 +72,7 @@ public class Data extends Packet {
     }
     for (int i = 0; !(p instanceof Acknowledgment)
         || ((Acknowledgment) p).getBlockNumber() != blockNumber; i++) {
-      send(socket);
+      send();
       try {
         p = p.receive();
       } catch (SocketTimeoutException e) {

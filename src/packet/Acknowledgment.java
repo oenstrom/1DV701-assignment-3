@@ -46,7 +46,7 @@ public class Acknowledgment extends Packet {
   public Data retransmit(short blockNumber) throws IOException, ConnectException {
     Packet p = new Packet(socket).receive();
     for (int i = 0; !(p instanceof Data && ((Data) p).getBlockNumber() == blockNumber); i++) {
-      send(socket);
+      send();
       try {
         p = p.receive();
       } catch (SocketTimeoutException e) {

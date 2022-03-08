@@ -26,7 +26,7 @@ public class ServerWrite extends Server {
     socket.setSoTimeout(timeOutMs);
     short blockNr = 0;
     Acknowledgment ack = new Acknowledgment(socket, blockNr++);
-    ack.send(socket);
+    ack.send();
 
     FileOutputStream fos = new FileOutputStream(file);
     Data p;
@@ -39,7 +39,7 @@ public class ServerWrite extends Server {
       }
       fos.write(p.getContent());
       ack = new Acknowledgment(socket, blockNr++);
-      ack.send(socket);
+      ack.send();
     } while (p.getContentLength() == Packet.MAX_CONTENT_LENGTH);
     //TODO dally();
     fos.flush();

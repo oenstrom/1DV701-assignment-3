@@ -32,7 +32,7 @@ public class ServerRead extends Server {
       short blockNr = 1;
       do {
         p = new Data(socket, blockNr++, fis);
-        p.send(socket);
+        p.send();
         p.retransmit();
       } while (p.getContentLength() == Packet.MAX_CONTENT_LENGTH);
       System.out.println("File '" + fileToSend.getName() + "' sent.");

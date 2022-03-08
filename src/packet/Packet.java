@@ -54,13 +54,13 @@ public class Packet {
       case(opWrq):  return new Write(socket, dp);
       case(opData): return new Data(socket, dp); 
       case(opAck):  return new Acknowledgment(socket, dp);
-      case(opErr): throw new ConnectException("Error received. Terminating connection.");
+      case(opErr):  throw new ConnectException("Error received. Terminating connection.");
       // return new Error(socket);
       default:      return null; // TODO Handle null.
     }
   }
 
-  public void send(DatagramSocket socket) throws IOException {
+  public void send() throws IOException {
     socket.send(new DatagramPacket(packet, packetLength));
   }
 

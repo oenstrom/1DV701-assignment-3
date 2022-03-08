@@ -1,7 +1,5 @@
 package packet;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
 
@@ -28,15 +26,4 @@ public class Error extends Packet {
     ByteBuffer.wrap(packet)
       .putShort(opErr).putShort(errorType.code).put(errorType.message).put((byte) 0);
   }
-
-  /**
-   * Send a data packet.
-   */
-  public void send() {
-    try {
-      socket.send(new DatagramPacket(packet, packetLength));
-    } catch (IOException e) {
-      System.err.println("Error packet could not be sent. Terminating connection.");
-    }
-  } 
 }
