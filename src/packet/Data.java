@@ -63,16 +63,13 @@ public class Data extends Packet {
    * @throws ConnectException if the client doesn't respond.
    */
   public Acknowledgment retransmit() throws IOException, ConnectException {
-    //TODO: Can this be done better?
-    Packet p;
-    try {
-      p = new Packet(socket).receive();
-    } catch (SocketTimeoutException e) {
-      p = new Acknowledgment(socket, (short) 0);
-    }
+    Packet p = new Packet(socket);
+   
     for (int i = 0; !(p instanceof Acknowledgment)
         || ((Acknowledgment) p).getBlockNumber() != blockNumber; i++) {
-      send();
+      if (i != 0) {
+        send();
+      }
       try {
         p = p.receive();
       } catch (SocketTimeoutException e) {
