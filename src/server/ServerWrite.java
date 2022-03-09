@@ -41,7 +41,6 @@ public class ServerWrite extends Server {
       ack = new Acknowledgment(socket, blockNr++);
       ack.send();
     } while (p.getContentLength() == Packet.MAX_CONTENT_LENGTH);
-    //TODO dally();
     fos.flush();
     fos.close();
     System.out.println("File '" + file.getName() + "' received.");

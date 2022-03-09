@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.net.PortUnreachableException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
@@ -17,7 +18,7 @@ import packet.Request;
  */
 public abstract class Server extends Thread {
   protected String readDir = Path.of(System.getProperty("user.dir"), "public").toString();
-  protected final int timeOutMs = 1000;
+  protected final int timeOutMs = 1500;
   public DatagramSocket socket;
   protected Request packet;
   
@@ -51,6 +52,8 @@ public abstract class Server extends Thread {
         System.err.println("Timeout. The connection has been terminated.");
         new Error(socket, Error.Type.PREMATURE_TERMINATION).send();
       }
+    } catch (PortUnreachableException e) {
+      System.err.println("Could not reach the client. Terminating connection.");
     } catch (IOException e) {
       try {
         new Error(socket, Error.Type.PREMATURE_TERMINATION).send();
@@ -59,6 +62,7 @@ public abstract class Server extends Thread {
       }
       e.printStackTrace();
       System.err.println("Closing socket and terminating thread.");
+    } finally {
       socket.close();
       Thread.currentThread().interrupt();
     }
