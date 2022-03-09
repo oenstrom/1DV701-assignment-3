@@ -32,7 +32,7 @@ public class ServerWrite extends Server {
     Data p;
     do {
       try {
-        p = ack.retransmit(blockNr);
+        p = retransmit(blockNr, ack);
       } catch (ConnectException e) {
         fos.close();
         throw e;
@@ -61,5 +61,21 @@ public class ServerWrite extends Server {
       e.printStackTrace();
       throw new AccessDeniedException("Access violation");
     }
+  }
+
+  /**
+   * Retransmit an ack packet if needed.
+   *
+   * @param blockNr the block number to check.
+   * @param ack the ack packet to retransmit if needed.
+   * @return the received data packet.
+   * @throws ConnectException if the client doesn't respond.
+   */
+  private Data retransmit(short blockNr, Acknowledgment ack) throws IOException, ConnectException {
+    Packet p = new Packet(socket);
+    for (int i = 0; !(p instanceof Data && ((Data) p).getBlockNumber() == blockNr); i++) {
+      p = sendAndReceive(ack, i);
+    }
+    return (Data) p;
   }
 }

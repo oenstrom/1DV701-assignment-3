@@ -7,10 +7,12 @@ import java.net.ConnectException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.PortUnreachableException;
+import java.net.SocketTimeoutException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import packet.Error;
+import packet.Packet;
 import packet.Request;
 
 /**
@@ -18,6 +20,7 @@ import packet.Request;
  */
 public abstract class Server extends Thread {
   protected String readDir = Path.of(System.getProperty("user.dir"), "public").toString();
+  protected final int retransmitLimit = 5;
   protected final int timeOutMs = 1500;
   public DatagramSocket socket;
   protected Request packet;
@@ -66,6 +69,29 @@ public abstract class Server extends Thread {
       socket.close();
       Thread.currentThread().interrupt();
     }
+  }
+
+  /**
+   * Send a packet and receive an answer. Used in retransmit.
+   *
+   * @param toSend the packet to send/retransmit.
+   * @param round the integer to check against if retransmit limit is reached.
+   * @return the received packet or a general Packet if the receive times out.
+   * @throws ConnectException if the retransmit limit is reached.
+   */
+  protected Packet sendAndReceive(Packet toSend, int round)
+      throws ConnectException, IOException {
+    if (round != 0) {
+      toSend.send();
+    }
+    try {
+      return new Packet(socket).receive();
+    } catch (SocketTimeoutException e) {
+      if (round == retransmitLimit) {
+        throw new ConnectException("Client not responding.");
+      }
+    }
+    return new Packet(socket);
   }
 
   protected abstract void validFile(File file) 

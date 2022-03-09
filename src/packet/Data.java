@@ -2,10 +2,8 @@ package packet;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.ConnectException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 
 /**
@@ -54,30 +52,5 @@ public class Data extends Packet {
 
   public short getBlockNumber() {
     return this.blockNumber;
-  }
-
-  /**
-   * Retransmit a packet.
-   *
-   * @return the received data packet.
-   * @throws ConnectException if the client doesn't respond.
-   */
-  public Acknowledgment retransmit() throws IOException, ConnectException {
-    Packet p = new Packet(socket);
-   
-    for (int i = 0; !(p instanceof Acknowledgment)
-        || ((Acknowledgment) p).getBlockNumber() != blockNumber; i++) {
-      if (i != 0) {
-        send();
-      }
-      try {
-        p = p.receive();
-      } catch (SocketTimeoutException e) {
-        if (i == RETRANSMIT_LIMIT) {
-          throw new ConnectException("Client not responding.");
-        }
-      }
-    }
-    return (Acknowledgment) p;
   }
 }

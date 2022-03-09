@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
  * Class that defines a TFTP Packet.
  */
 public class Packet {
-  public static final int RETRANSMIT_LIMIT = 5;
+  // public static final int RETRANSMIT_LIMIT = 5;
   public static final int MAX_CONTENT_LENGTH = 512;
   protected final int bufferLen = 516;
   protected byte[] buffer;
