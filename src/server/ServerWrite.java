@@ -44,6 +44,7 @@ public class ServerWrite extends Server {
     //TODO dally();
     fos.flush();
     fos.close();
+    System.out.println("File '" + file.getName() + "' received.");
   }
 
   @Override

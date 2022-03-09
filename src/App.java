@@ -19,7 +19,7 @@ public class App {
    */
   public static void main(String[] args) {
     if (args.length > 0) {
-      System.err.printf("usage: java %s\n", TftpServer.class.getCanonicalName());
+      System.err.printf("usage: java %s\n", App.class.getCanonicalName());
       System.exit(1);
     }
 
