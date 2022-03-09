@@ -1,7 +1,11 @@
 Compilation:
 Make sure you are in the directory with the `App.java`, `packet` directory and `server` directory.
-Then run the following command to quickly compile everything:  
+Then run the following command to quickly compile everything: 
+ 
 find . -name "*.java" > sources.txt && javac @sources.txt
+
+Just compiling the App.java file should work too: javac App.java
+
 
 Run:
 Run the TFTP server with the following command:  
